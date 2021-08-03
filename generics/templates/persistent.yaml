@@ -1,0 +1,38 @@
+{{- if .Values.persistent }}
+{{- range .Values.services }}
+{{- $app := . -}}
+{{- if $app.usePersistent -}}
+{{- range .versions }}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ $app.name }}-{{ .version }}-pv
+  labels: 
+    name: {{ $app.name }}-{{ .version }}-pv
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteMany
+  nfs:
+    server: {{ $.Values.persistent.nfs.server }}
+    path: {{ $.Values.persistent.nfs.path }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $app.name }}-{{ .version }}-pvc
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 5Gi
+  selector: 
+    matchLabels:
+      name: {{ $app.name }}-{{ .version }}-pv
+---
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

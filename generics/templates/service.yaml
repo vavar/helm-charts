@@ -1,0 +1,34 @@
+{{- range .Values.services }}
+{{- if .ports }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .name }}
+  labels:
+    {{- include "release.labels" $ | nindent 4 }}
+    app.kubernetes.io/name: {{ .name }}
+    app.kubernetes.io/instance: {{ .name }}
+    app.kubernetes.io/app: {{ .name }}
+    app: {{ .name }}
+spec:
+  ports:
+  {{- $type := "" -}}
+  {{- range .ports }}
+    {{- if not .internal }}
+    - port: {{ .port }}
+      protocol: TCP
+      {{- if .nodePort }}
+      nodePort: {{ .nodePort }} 
+      {{- $type = "NodePort" -}}
+      {{- end }}
+      name: {{ include "app.portName" . }}
+    {{- end }}
+  {{- end }}
+  selector:
+    app: {{ .name }}
+  {{- if $type }}
+  type: {{ $type}} 
+  {{- end }}
+---
+{{- end}}
+{{- end }}

@@ -1,0 +1,22 @@
+{{- if not .Values.disableIstio }}
+{{- range .Values.services }}
+{{- if .ports }}
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: {{ .name }}-dr
+spec:
+  host: {{ .name }}
+  trafficPolicy:
+    loadBalancer:
+      simple: RANDOM
+  subsets:
+  {{- range .versions }}
+  - name: {{ .version }}
+    labels:
+      version: {{ .version }}
+  {{- end }}
+---
+{{- end }}
+{{- end }}
+{{- end }}

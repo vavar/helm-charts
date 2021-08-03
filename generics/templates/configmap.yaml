@@ -1,0 +1,16 @@
+{{- if $.Values.configMap }}
+{{- range .Values.services }}
+{{- $app := . -}}
+{{- range .versions }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $app.name }}-{{ .version }}-cfm
+data:
+  config.yaml: |+
+    {{- $.Values.configMap | toYaml | nindent 4 }}
+
+---
+{{- end }}
+{{- end }}
+{{- end }}

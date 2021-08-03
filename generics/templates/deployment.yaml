@@ -1,0 +1,113 @@
+{{- range .Values.services }}
+{{- $app := . -}}
+{{- range .versions }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ printf "%s-%s" $app.name .version }}
+  labels:
+    app: {{ $app.name }}
+    app.kubernetes.io/instance: {{ printf "%s-%s" $app.name .version }}
+    app.kubernetes.io/managed-by: {{ $.Release.Service }}
+    app.kubernetes.io/name: {{ $app.name }}
+    app.kubernetes.io/version: {{ $.Chart.AppVersion | quote }}
+    helm.sh/chart: {{ include "app.chart" $ }}
+    version: {{ .version }}
+spec:
+  replicas: {{ .replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ $app.name }}
+      app.kubernetes.io/instance: {{ printf "%s-%s" $app.name .version }}
+      app.kubernetes.io/name: {{ $app.name }}
+      version: {{ .version }}
+  template:
+    metadata:
+      labels:
+        app: {{ $app.name }}
+        app.kubernetes.io/instance: {{ printf "%s-%s" $app.name .version }}
+        app.kubernetes.io/name: {{ $app.name }}
+        version: {{ .version }}
+      {{- with $.Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      imagePullSecrets:
+        - name: test-y
+      containers:
+        - name: {{ $app.name }}
+          {{- if $app.image }}
+          image: {{ $app.image | quote }}
+          {{- else }}
+          image: "{{ $.Values.image.repository }}:{{ $.Values.image.tag | default $.Chart.AppVersion }}"
+          {{- end }}
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+        {{- if $app.entrypoint }}
+          command: [{{ $app.entrypoint | quote }}]
+        {{- end }}
+        {{- if $app.command }}
+          args: [{{ $app.command | quote }}, "--config", "/config/config.yaml"]
+        {{- end }}
+          ports:
+            {{- range $app.ports }}
+            - name: {{ .interface }}
+              containerPort: {{ .port }}
+              protocol: TCP
+            {{- end }}
+          {{- if $app.enableHealthProbe }}
+          livenessProbe:
+            httpGet:
+              path: {{ default "/metrics" $app.healthProbeEndpoint }}
+              port: {{ default 7000 $app.healthProbePort }}
+              scheme: HTTP
+            timeoutSeconds: 15
+            periodSeconds: 15
+            initialDelaySeconds: 45
+            successThreshold: 1
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: {{ default "/metrics" $app.healthProbeEndpoint }}
+              port: {{ default 7000 $app.healthProbePort }}
+              scheme: HTTP
+            timeoutSeconds: 15
+            periodSeconds: 15
+            initialDelaySeconds: 30
+            successThreshold: 1
+            failureThreshold: 10
+          {{- end }}
+          env:
+            {{- if $app.envVars }}
+            {{- toYaml $app.envVars | nindent 12 }}
+            {{- end }}
+            {{- if $.Values.envVars }}
+            {{- toYaml $.Values.envVars | nindent 12 }}
+            {{- end }}
+          {{- if or $.Values.configMap  $app.usePersistent }}
+          volumeMounts:
+            {{- if $.Values.configMap }}
+            - name: configmap-volume
+              mountPath: /config
+            {{- end }}
+            {{- if $app.usePersistent }}
+            - name: persistent-volume
+              mountPath: /share-file
+            {{- end }}
+          {{- end }}
+      {{- if or $.Values.configMap  $app.usePersistent }}
+      volumes:
+        {{- if $.Values.configMap }}
+        - name: configmap-volume
+          configMap:
+            name: {{ $app.name }}-{{ .version }}-cfm
+        {{- end }}
+        {{- if $app.usePersistent }}
+        - name: persistent-volume
+          persistentVolumeClaim:
+            claimName: {{ $app.name }}-{{ .version }}-pvc
+        {{- end }}
+      {{- end }}
+---
+{{- end }}
+{{- end }}
